@@ -4,7 +4,7 @@ Marxan community: Marxan.org
 
 Marxan cloudified: Marxan.net
 
-This is the C source code for Marxan version 3.0.0.
+This is the C source code for Marxan version 3.0.0. This is an active in-development version of Marxan.
 
 The software is intended to be compiled with GCC (the GNU Compiler Collection) and to be platform independant between Linux, OSX, Windows.
 
