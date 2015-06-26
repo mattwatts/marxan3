@@ -95,7 +95,6 @@
         int targetocc;
         double spf;
         double penalty;
-        double rUserPenalty;
         double amount;
         double expected1D, expected2D, variance1D, variance2D;
         int occurrence;
@@ -191,12 +190,12 @@
         char *puvsprname;
         //char *puvspprobname;
         char *matrixspordername;
+	char *heuristicordername;
         char *connectionname;
         char *blockdefname;
         char *bestfieldname;
         char *connectionfilesname;
         char *rbinarypath;
-        char *penaltyname;
         int savebest;
         int saverun;
         int savesum;
@@ -209,18 +208,15 @@
         int savesnapfrequency;
         int savepenalty;
         int savetotalareas;
-        int savedebugtracefile;
         int savesolutionsmatrix;
+        int saveheuristicorder;
         int solutionsmatrixheaders;
         int saveannealingtrace;
         int annealingtracerows;
         int saveitimptrace;
         int itimptracerows;
         int saverichness;
-        int savespec;
-        int savepu;
-        int savepuvspr;
-        int savematrixsporder;
+        int savespeciesdata;
         int rexecutescript;
         int rimagetype;
         int rimagewidth;
@@ -233,10 +229,9 @@
 
     typedef struct srunoptions
     {
-		int CalcPenaltiesOn;
-        int HeuristicOn;
         int ThermalAnnealingOn;
         int QuantumAnnealingOn;
+        int HeuristicOn;
         int ItImpOn;
     } typerunopts;
 
@@ -438,8 +433,11 @@ void SetOptions(double *cm,double *prop,struct sanneal *anneal,
                 int *itimptype,
                 double *costthresh,double *tpf1,double *tpf2);
 
-int LoadPuDat(int *puno,struct spustuff *pu[],struct sfname fnames);
-int LoadSpecDat(int *spno,struct sspecies *spec[],struct sfname fnames);
+int ReadPUCosts(int puno,struct spustuff pu[],struct binsearch PULookup[],int verbose,char indir[]);
+int ReadPUFile(int puno,struct spustuff pu[],struct binsearch PULookup[],int verbose,char indir[]);
+int ReadPUXYfile(int puno,struct spustuff pu[],struct binsearch PULookup[],char indir[]);
+int ReadPUData(int *puno,struct spustuff *pu[],struct sfname fnames);
+int ReadSpeciesData(int *spno,struct sspecies *spec[],struct sfname fnames);
 int ReadGenSpeciesData(int *gspno,struct sgenspec *gspec[],struct sfname fnames);
 int DumpAsymmetricConnectivityFile(int puno,struct sconnections connections[],struct spustuff pu[],struct sfname fnames);
 int ReadConnections(int puno,struct sconnections connections[],int verbose,struct spustuff pu[],
@@ -450,9 +448,6 @@ void ReadPUVSPFile22(int puno,int spno,struct spu SM[],int verbose,struct spustu
     typesp spec[],struct sfname fnames);
 void ReadPUVSPFileTable(FILE *infile, int puno,int spno,struct spu SM[],struct spustuff pu[],
     typesp spec[]);
-
-void LoadPenalty(typesp spec[],int spno,struct sfname fnames,struct binsearch SPLookup[]);
-void MapUserPenalties(typesp spec[],int spno);
 
 /* new functions added by Matt for Marxan optimization */
 void LoadSparseMatrix(int *iSMSize, struct spu *SM[], int puno, int spno, struct spustuff PU[],
@@ -479,7 +474,6 @@ void setClumpSpecAtPu(struct spustuff PU[], struct spu SM[], int iPUIndex, int i
 void TestrtnAmountSpecAtPu(int puno, int spno, struct spustuff pu[], struct sspecies spec[], struct spu SM[],
                            struct sfname fnames);
 void StartDebugTraceFile(void);
-void vAppendDebugTraceFile(char sMess[],...);
 void AppendDebugTraceFile(char sMess[],...);
 
 #endif
@@ -498,6 +492,7 @@ void OutputScenario(int puno,int spno,double prop,double cm,
     int runopts,int heurotype,double costthresh, double tpf1, double tpf2,
     char savename[]);
 void OutputSolution(int puno,int R[],struct spustuff pu[],char savename[],int imode,struct sfname fnames);
+void OutputHeuristicOrder(int bestRunNum, char baseSaveName[], char bestSaveName[], int imode);
 void OutputSpecies(int spno,struct sspecies spec[],char savename[],int imode,double misslevel);
 void OutputSumSoln(int puno,int sumsoln[],struct spustuff pu[],char savename[],int imode);
 
@@ -532,7 +527,8 @@ double ProdIrr(int ipu,double Rare[],struct spustuff pu[],struct spu SM[],typesp
 double SumIrr(int ipu,double Rare[],struct spustuff pu[],struct spu SM[],typesp *spec);
 void Heuristics(int spno,int puno,struct spustuff pu[],struct sconnections connections[],
         int R[], double cm,typesp *spec,struct spu SM[], struct scost *reserve,
-        double costthresh, double tpf1,double tpf2, int imode,int clumptype);
+        double costthresh, double tpf1,double tpf2, int imode,int clumptypei, int savemode, char *savename);
+void AppendHeuristicOrder(int puno, int orderno, char savename[],int imode, int iIncludeHeaders);
 
 #endif
 
@@ -551,9 +547,13 @@ int FindSwap( struct slink **list,double targetval,int itestchoice,int puuntried
              int R[], double cm, struct scost *reserve, struct scost *change,
              double costthresh, double tpf1, double tpf2, int clumptype);
 void IterativeImprovement(int puno,int spno,struct spustuff pu[], struct sconnections connections[],
-                          struct sspecies spec[],struct spu SM[],int R[], double cm,
-                          struct scost *reserve,struct scost *change,double costthresh,double tpf1, double tpf2,
-                          int clumptype,int irun,char *savename);
+                           struct sspecies spec[],struct spu SM[],int R[], double cm,
+                           struct scost *reserve,struct scost *change,double costthresh,double tpf1, double tpf2,
+                           int clumptype,int itimptype);
+void IterativeImprovementOptimise(int puno,int spno,struct spustuff pu[], struct sconnections connections[],
+                                   struct sspecies spec[],struct spu SM[],int R[], double cm,
+                                   struct scost *reserve,struct scost *change,double costthresh,double tpf1, double tpf2,
+                                   int clumptype,int irun,char *savename);
 
 #endif
 
@@ -617,7 +617,8 @@ typedef struct sseplist{
 
 /* Function Prototypes */
 
-double SepPenalty(int ival, int itarget);
+double SepPenalty(int ival);
+double SepPenalty2(int ival, int itarget);
 int ValidPU(int ipu,int isp,struct sclumps *newno,struct sspecies spec[],struct spustuff pu[],
             struct spu SM[],int imode);
 int CheckDistance(int i, int j,struct spustuff pu[],double squaretarget);
@@ -633,6 +634,7 @@ int CountSeparation2(int isp,int ipu,struct sclumps *newno,int puno,int R[],
     /* Debug files */
 
 void CheckDist(struct sseplist *Dist,int sepnum);
+
 
 #endif
 
@@ -670,12 +672,12 @@ void AppendDebugFile(char sFileName[],char sLine[],struct sfname fnames);
 void OutputPenalty(int spno,struct sspecies spec[],char savename[],int iOutputType);
 void OutputPenaltyPlanningUnits(int puno,struct spustuff pu[],int Rtemp[],char savename[],int iOutputType);
 void OutputRichness(int puno,struct spustuff pu[],char savename[],int iOutputType);
-void OutputSpec(int spno,struct sspecies spec[],char savename[]);
-void OutputPu(int puno,struct spustuff pu[],char savename[]);
+void OutputSpeciesData(int spno,struct sspecies spec[],char savename[]);
 
 // functions for cluster analysis in R
 void InitSolutionsMatrix(int puno,struct spustuff pu[],char savename_ism[],int iOutputType,int iIncludeHeaders);
 void AppendSolutionsMatrix(int iRun,int puno,int R[],char savename[],int iOutputType,int iIncludeHeaders);
+void WriteRScripts(int iSolutionCount, char solutionsfilename[],char savename[], struct sfname fnames);
 void ExecuteRScript(struct sfname fnames);
 
 //void Load2DProbData(int *iSMSize, struct smprob *probSM[], int puno, int spno, struct spustuff pu[],
@@ -687,10 +689,3 @@ void SlaveExit(void);
 void OutputTotalAreas(int puno,int spno,struct spustuff pu[],struct sspecies spec[],struct spu SM[],char savename[],int iOutputType);
 void CopyFile(char sInputFile[],char sOutputFile[]);
 
-int CalcPenaltiesOptimise_OpenMP(int puno,int spno,struct spustuff pu[],struct sspecies spec[],
-                                 struct sconnections connections[],struct spu SM[],struct spusporder SMsp[],
-                                 int PUtemp[],int aggexist,double cm,int clumptype);
-
-int ExecuteRunLoop(long int repeats,int puno,int spno,double cm,int aggexist,double prop,int clumptype,int verbose,double misslevel,
-                   char savename[],double costthresh,double tpf1,double tpf2,int heurotype,int runopts,
-                   int itimptype,int *iBestRun,int sumsoln[],int marxanisslave);
