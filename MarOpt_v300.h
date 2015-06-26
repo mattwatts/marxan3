@@ -191,6 +191,7 @@
         char *puvsprname;
         //char *puvspprobname;
         char *matrixspordername;
+        char *heuristicordername;
         char *connectionname;
         char *blockdefname;
         char *bestfieldname;
@@ -211,6 +212,7 @@
         int savetotalareas;
         int savedebugtracefile;
         int savesolutionsmatrix;
+        int saveheuristicorder;
         int solutionsmatrixheaders;
         int saveannealingtrace;
         int annealingtracerows;
@@ -233,7 +235,7 @@
 
     typedef struct srunoptions
     {
-		int CalcPenaltiesOn;
+        int CalcPenaltiesOn;
         int HeuristicOn;
         int ThermalAnnealingOn;
         int QuantumAnnealingOn;
@@ -498,6 +500,7 @@ void OutputScenario(int puno,int spno,double prop,double cm,
     int runopts,int heurotype,double costthresh, double tpf1, double tpf2,
     char savename[]);
 void OutputSolution(int puno,int R[],struct spustuff pu[],char savename[],int imode,struct sfname fnames);
+void OutputHeuristicOrder(int bestRunNum, char baseSaveName[], char bestSaveName[], int imode);
 void OutputSpecies(int spno,struct sspecies spec[],char savename[],int imode,double misslevel);
 void OutputSumSoln(int puno,int sumsoln[],struct spustuff pu[],char savename[],int imode);
 
@@ -532,7 +535,8 @@ double ProdIrr(int ipu,double Rare[],struct spustuff pu[],struct spu SM[],typesp
 double SumIrr(int ipu,double Rare[],struct spustuff pu[],struct spu SM[],typesp *spec);
 void Heuristics(int spno,int puno,struct spustuff pu[],struct sconnections connections[],
         int R[], double cm,typesp *spec,struct spu SM[], struct scost *reserve,
-        double costthresh, double tpf1,double tpf2, int imode,int clumptype);
+        double costthresh, double tpf1,double tpf2, int imode,int clumptypei, int savemode, char *savename);
+void AppendHeuristicOrder(int puno, int orderno, char savename[],int imode, int iIncludeHeaders);
 
 #endif
 
