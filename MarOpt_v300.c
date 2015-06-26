@@ -218,9 +218,30 @@ int ExecuteRunLoop(long int repeats,int puno,int spno,double cm,int aggexist,dou
         if (runoptions.HeuristicOn)
         {
            AppendDebugTraceFile("before Heuristics run %i\n",irun);
+           
+           if (fnames.saveheuristicorder)
+           {
+
+              #ifdef DEBUGTRACEFILE
+              AppendDebugTraceFile("before HeuristicOrder savename %s\n", savename);
+              #endif
+   
+              if (fnames.saveheuristicorder==3)
+                 sprintf(tempname2,"%s_ho%05i.csv",savename,irun%10000);
+              else
+              if (fnames.saveheuristicorder==2)
+                 sprintf(tempname2,"%s_ho%05i.txt",savename,irun%10000);
+              else
+                 sprintf(tempname2,"%s_ho%05i.dat",savename,irun%10000);
+
+              AppendHeuristicOrder(-1,-1, tempname2, fnames.saveheuristicorder, 1);
+              AppendDebugTraceFile("after HeuristicOrder savename %s\n",savename);
+           }
+
 
            Heuristics(spno,puno,pu,connections,R2D[irun-1],cm,spec,SM,&reserve,
-                      costthresh,tpf1,tpf2,heurotype,clumptype);
+                      costthresh,tpf1,tpf2,heurotype,clumptype, 
+                      fnames.saveheuristicorder, tempname2);
 
            if (verbose > 1 && (runopts == 2 || runopts == 5))
            {
@@ -784,6 +805,19 @@ int Marxan(char sInputFileName[])
            sprintf(tempname2,"%s_mvbest.dat",savename);
 
        OutputSpecies(spno,spec,tempname2,fnames.savespecies,misslevel);
+    }
+
+    if (fnames.saveheuristicorder && fnames.savebest)
+    {
+      if (fnames.savespecies == 3)
+        sprintf(tempname2, "%s_hobest.csv", savename);
+      else
+      if (fnames.savespecies == 2)
+        sprintf(tempname2, "%s_hobest.txt", savename);
+      else
+        sprintf(tempname2, "%s_hobest.dat", savename);
+
+      OutputHeuristicOrder(iBestRun, savename, tempname2, fnames.saveheuristicorder);
     }
 
     if (fnames.savesumsoln)
@@ -5443,6 +5477,7 @@ void SetOptions(double *cm,double *prop,struct sanneal *anneal,
      (*fnames).itimptracerows = 0;
      (*fnames).savespec = 0;
      (*fnames).savepu = 0;
+     (*fnames).saveheuristicorder = 0;
      (*fnames).savepuvspr = 0;
      (*fnames).savematrixsporder = 0;
      (*fnames).rimagetype = 0;
@@ -5502,6 +5537,7 @@ void SetOptions(double *cm,double *prop,struct sanneal *anneal,
      rdsvar(fp,"SAVESUMSOLN",&(*fnames).savesumsoln,INTEGER,0,present);
      rdsvar(fp,"SAVESPEC",&(*fnames).savespec,INTEGER,0,present);
      rdsvar(fp,"SAVEPU",&(*fnames).savepu,INTEGER,0,present);
+     rdsvar(fp,"SAVEHEURISTICORDER",&(*fnames).saveheuristicorder,INTEGER,0,present);
      rdsvar(fp,"SAVEMATRIXPUORDER",&(*fnames).savepuvspr,INTEGER,0,present);
      rdsvar(fp,"SAVEMATRIXSPORDER",&(*fnames).savematrixsporder,INTEGER,0,present);
      rdsvar(fp,"SAVEPENALTY",&(*fnames).savepenalty,INTEGER,0,present);
@@ -5581,6 +5617,11 @@ void SetOptions(double *cm,double *prop,struct sanneal *anneal,
      rdsvar(fp,"PENALTYNAME",stemp,STRING,0,present);
      (*fnames).penaltyname = (char *) calloc(strlen(stemp)+1,sizeof(char));
      strcpy((*fnames).penaltyname,stemp);
+
+     strcpy(stemp,"NULL");
+     rdsvar(fp,"HEURISTICORDERNAME",stemp,STRING,0,present);
+     (*fnames).heuristicordername = (char *) calloc(strlen(stemp)+1,sizeof(char));
+     strcpy((*fnames).heuristicordername,stemp);
 
      strcpy(stemp,"NULL");
      rdsvar(fp,"BOUNDNAME",stemp,STRING,0,present);
@@ -6953,8 +6994,45 @@ void OutputSolution(int puno,int R[],struct spustuff pu[],char savename[],int im
      fclose(fp);
 } // Output Solution
 
-// Scenario Output File
-// OutputScenario
+void OutputHeuristicOrder(int bestRunNum, char baseSaveName[], char bestSaveName[], int imode)
+{
+  FILE *bestfp, *runfp;  /* Imode = 1, REST output, Imode = 2, Arcview output */
+  char ch, runLoadName[100];
+  int i;
+
+  bestfp = fopen(bestSaveName, "w");
+  if (!bestfp)
+    ShowErrorMessage("Cannot save output to %s \n", bestSaveName);
+
+  if (imode == 3)
+    sprintf(runLoadName, "%s_ho%05i.csv", baseSaveName, bestRunNum % 10000);
+  else
+  if (imode == 2)
+    sprintf(runLoadName, "%s_ho%05i.txt", baseSaveName, bestRunNum % 10000);
+  else
+    sprintf(runLoadName, "%s_ho%05i.dat", baseSaveName, bestRunNum % 10000);
+
+  runfp = fopen(runLoadName, "r");
+  if (!runfp)
+    ShowErrorMessage("Cannot load data from %s \n", runLoadName);
+
+  while (1)
+  {
+    ch = fgetc(runfp);
+
+    if (ch == EOF)
+      break;
+    else
+      putc(ch, bestfp);
+  }
+
+  fclose(runfp);
+  fclose(bestfp);
+}  /* OutputHeuristicOrder */
+
+
+/************* Scenario Output File ***************/
+/*** OutputScenario ****/
 void OutputScenario(int puno,int spno,double prop,double cm,
                     struct sanneal anneal,int seedinit,long int repeats,int clumptype,
                     int runopts,int heurotype,double costthresh, double tpf1, double tpf2,
@@ -7537,11 +7615,12 @@ double SumIrr(int ipu,double Rare[],struct spustuff pu[],struct spu SM[],typesp 
 // Main Heuristic Engine
 void Heuristics(int spno,int puno,struct spustuff pu[],struct sconnections connections[],
                 int R[], double cm,typesp *spec,struct spu SM[], struct scost *reserve,
-                double costthresh, double tpf1,double tpf2, int imode,int clumptype)
+                double costthresh, double tpf1,double tpf2, int imode,int clumptype,
+                int savemode, char *savename)
 // imode = 1: 2: 3: 4:
 // imode = 5: 6: Prod Irreplaceability, 7: Sum Irreplaceability
 {
-     int i,bestpu;
+     int i,bestpu, orderno;
      double bestscore,currscore;
      struct scost change;
      double *Rare;
@@ -7571,6 +7650,8 @@ void Heuristics(int spno,int puno,struct spustuff pu[],struct sconnections conne
         AppendDebugTraceFile("Heuristics 2 to 5 after SetRareness\n");
         #endif
      }
+
+     orderno = 1;
 
      do
      {
@@ -7662,6 +7743,12 @@ void Heuristics(int spno,int puno,struct spustuff pu[],struct sconnections conne
               if (fProb2D == 1)
                  ShowGenProgInfo(" Probability2D %.1f\n",reserve->probability2D);
               ShowGenProgInfo(" Penalty %.1f\n",reserve->penalty);
+
+              if (savemode >= 1)
+              {
+                 AppendHeuristicOrder(pu[bestpu].id, orderno, savename, savemode, 0); 
+                 orderno++;
+              }
            }
 
      } while (bestscore); // Repeat until all good PUs have been added
@@ -7672,6 +7759,42 @@ void Heuristics(int spno,int puno,struct spustuff pu[],struct sconnections conne
      AppendDebugTraceFile("Heuristics end\n");
      #endif
 } // Heuristics
+
+void AppendHeuristicOrder(int puno, int orderno, char savename[],int imode, int iIncludeHeaders)
+{
+     FILE *fp;
+     int i, iStatus;
+     char sDelimiter[20];
+
+     if (imode == 0)
+       return;
+
+     if (iIncludeHeaders == 1) 
+       fp = fopen(savename, "w");
+     else 
+       fp = fopen(savename, "a");
+
+     if (!fp)
+        ShowErrorMessage("Cannot save output to %s \n",savename);
+
+     if (imode > 1)
+     {
+        strcpy(sDelimiter,",");
+        if (iIncludeHeaders == 1)
+          fprintf(fp,"\"%s\"%s\"%s\"\n", "planning_unit", sDelimiter, "order");
+     }
+     else
+     {
+        strcpy(sDelimiter,"\t");
+        if (iIncludeHeaders == 1)
+           fprintf(fp,"PUID%sOrder\n",sDelimiter);
+     }
+
+     if (iIncludeHeaders == 0) 
+         fprintf(fp,"%i%s%i\n", puno ,sDelimiter, orderno);
+
+     fclose(fp);
+}
 
 /* HEURISTIC.C END */
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
